@@ -1,43 +1,74 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Kalkulator Analisis & Validasi Metode", page_icon="🧪", layout="wide")
+# Konfigurasi Halaman
+st.set_page_config(page_title="Kalkulator Analisis Kimia & Validasi", page_icon="🧪", layout="wide")
 
-st.title("🧪 Kalkulator Analisis Kuantitatif & Validasi Metode")
-st.markdown("Aplikasi web interaktif untuk perhitungan kurva kalibrasi, kadar sampel, $\% \text{Recovery}$, $\% \text{RSD}$, dan estimasi LOD/LOQ.")
+st.title("🧪 Aplikasi Kalkulator Analisis Instrumentasi & Validasi Metode")
+st.markdown("Silakan pilih menu pengujian di bawah ini:")
 
-# Sidebar Navigasi Menu
-menu = st.sidebar.selectbox("Pilih Menu Perhitungan:", [
-    "1. Kurva Kalibrasi & Regresi Linear",
-    "2. Penentuan Kadar & Perhitungan Sampel",
-    "3. Uji Akurasi (% Recovery)",
-    "4. Uji Presisi (% RSD / % RPD)",
-    "5. Estimasi LOD & LOQ"
+# Buat Navigasi Menggunakan Tab / Tombol Menu Utama
+tab1, tab2, tab3, tab4 = st.tabs([
+    "1. 📈 Kurva Kalibrasi & Regresi Linear",
+    "2. 🧪 Perhitungan Kadar",
+    "3. 📊 Uji Presisi",
+    "4. 🎯 Uji Akurasi"
 ])
 
-# -------------------------------------------------------------------------
-# MENU 1: KURVA KALIBRASI & REGRESI LINEAR
-# -------------------------------------------------------------------------
-if menu == "1. Kurva Kalibrasi & Regresi Linear":
-    st.header("📈 Kurva Kalibrasi & Linearitas")
-    st.write("Masukkan data konsentrasi standar ($X$) dan respon instrumen/absorbansi ($Y$).")
+# =========================================================================
+# MENU 1: KURVA KALIBRASI, REGRESI LINEAR & PERHITUNGAN DERET STANDAR
+# =========================================================================
+with tab1:
+    st.header("📈 Kurva Kalibrasi, Regresi Linear & Pembuatan Deret Standar")
+    
+    # Sub-Fitur A: Perhitungan Deret Standar (V1 . C1 = V2 . C2)
+    with st.expander("🧪 Perhitungan Pemipetan Deret Standar ($V_1 \cdot C_1 = V_2 \cdot C_2$)", expanded=True):
+        st.write("Hitung volume larutan induk ($V_1$) yang harus dipipet untuk membuat larutan standar dengan konsentrasi tertentu.")
+        
+        col_c1, col_v2 = st.columns(2)
+        with col_c1:
+            c1 = st.number_input("Konsentrasi Larutan Induk ($C_1$)", value=100.0, step=1.0, help="Misal: 100 ppm")
+        with col_v2:
+            v2 = st.number_input("Volume Labu Ukur yang Digunakan ($V_2$ dalam mL)", value=50.0, step=1.0)
+            
+        st.markdown("**Masukkan Konsentrasi Standar yang Diinginkan ($C_2$):**")
+        c2_inputs = st.text_input("Pisahkan dengan koma (contoh: 0, 2, 4, 6, 8)", "0, 2, 4, 6, 8")
+        
+        if st.button("Hitung Volume Pemipetan ($V_1$)"):
+            try:
+                c2_list = [float(x.strip()) for x in c2_inputs.split(",")]
+                v1_list = [(c2 * v2) / c1 for c2 in c2_list]
+                
+                df_deret = pd.DataFrame({
+                    "Konsentrasi Target (C2)": c2_list,
+                    "Volume Pipet V1 (mL)": v1_list,
+                    "Volume Labu Ukur V2 (mL)": [v2] * len(c2_list),
+                    "Konsentrasi Induk C1": [c1] * len(c2_list)
+                })
+                st.dataframe(df_deret, use_container_width=True)
+            except ValueError:
+                st.error("Format konsentrasi salah. Pastikan hanya memasukkan angka yang dipisahkan koma.")
 
-    # Input data standar dalam bentuk tabel interaktif
-    num_points = st.number_input("Jumlah Titik Standar", min_value=3, max_value=10, value=5)
+    st.markdown("---")
+    
+    # Sub-Fitur B: Kurva Kalibrasi & Regresi Linear
+    st.subheader("📊 Kurva Kalibrasi & Regresi Linear")
+    num_points = st.number_input("Jumlah Titik Standar", min_value=3, max_value=15, value=5)
     
     default_data = pd.DataFrame({
-        "Konsentrasi (ppm/mg/L)": [0.0, 2.0, 4.0, 6.0, 8.0][:num_points],
+        "Konsentrasi (ppm)": [0.0, 2.0, 4.0, 6.0, 8.0][:num_points],
         "Absorbansi (Y)": [0.0, 0.150, 0.310, 0.455, 0.600][:num_points]
     })
 
-    edited_df = st.data_editor(default_data, num_rows="dynamic")
+    edited_df = st.data_editor(default_data, num_rows="dynamic", key="editor_kalibrasi")
 
-    if st.button("Hitung Regresi Linear"):
-        x = pd.to_numeric(edited_df["Konsentrasi (ppm/mg/L)"],errors='coerce').fillna(0).values.astype(float)
+    if st.button("Hitung Regresi & Tampilkan Kurva", type="primary"):
+        # Konversi tipe data agar aman dari TypeError
+        x = pd.to_numeric(edited_df["Konsentrasi (ppm)"], errors='coerce').fillna(0).values.astype(float)
         y = pd.to_numeric(edited_df["Absorbansi (Y)"], errors='coerce').fillna(0).values.astype(float)
 
-        # Perhitungan Regresi Linear (Least Squares)
         n = len(x)
         sum_x = np.sum(x)
         sum_y = np.sum(y)
@@ -45,129 +76,119 @@ if menu == "1. Kurva Kalibrasi & Regresi Linear":
         sum_xx = np.sum(x**2)
         sum_yy = np.sum(y**2)
 
+        # Perhitungan Regresi
         slope = (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x**2)
         intercept = (sum_y - slope * sum_x) / n
         r_value = (n * sum_xy - sum_x * sum_y) / np.sqrt((n * sum_xx - sum_x**2) * (n * sum_yy - sum_y**2))
         r_squared = r_value**2
 
         st.success("Perhitungan Berhasil!")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Slope ($m$)", f"{slope:.4f}")
-        col2.metric("Intercep ($c$)", f"{intercept:.4f}")
-        col3.metric("Koefisien Korelasi ($r$)", f"{r_value:.4f}")
-        st.info(f"Koefisien Determinasi ($R^2$): **{r_squared:.4f}**")
-        st.latex(f"y = {slope:.4f}x + ({intercept:.4f})")
+        c_m, c_c, c_r = st.columns(3)
+        c_m.metric("Slope ($m$)", f"{slope:.4f}")
+        c_c.metric("Intercept ($c$)", f"{intercept:.4f}")
+        c_r.metric("Koefisien Korelasi ($r$)", f"{r_value:.4f}")
+        st.info(f"Koefisien Determinasi ($R^2$): **{r_squared:.4f}** | Persamaan: **y = {slope:.4f}x + ({intercept:.4f})**")
 
-        # Plot Grafik Linearitas
-        fig, ax = plt.subplots(figsize=(8, 5))
-        ax.scatter(x, y, color='red', label='Data Pengamatan', zorder=5)
-        
-        # Garis regresi
-        y_pred = slope * x + intercept
-        ax.plot(x, y_pred, color='blue', label=f'Regresi: y = {slope:.4f}x + {intercept:.4f}')
-        
-        ax.set_xlabel("Konsentrasi")
-        ax.set_xlabel("Konsentrasi")
-        ax.set_ylabel("Absorbansi / Respon")
+        # Visualisasi Kurva
+        fig, ax = plt.subplots(figsize=(8, 4.5))
+        ax.scatter(x, y, color='red', label='Data Standar', zorder=5)
+        ax.plot(x, slope * x + intercept, color='blue', label=f'y = {slope:.4f}x + {intercept:.4f}')
+        ax.set_xlabel("Konsentrasi (ppm)")
+        ax.set_ylabel("Absorbansi (Y)")
         ax.set_title("Kurva Kalibrasi Linearitas")
         ax.legend()
-        ax.grid(True, linestyle='--', alpha=0.6)
+        ax.grid(True, linestyle='--', alpha=0.5)
         st.pyplot(fig)
 
-# -------------------------------------------------------------------------
-# MENU 2: PENENTUAN KADAR SAMPEL
-# -------------------------------------------------------------------------
-elif menu == "2. Penentuan Kadar & Perhitungan Sampel":
-    st.header("🧪 Perhitungan Konsentrasi Sampel")
-    st.write("Menghitung kadar sampel berdasarkan persamaan kurva kalibrasi $y = mx + c$.")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        slope = st.number_input("Masukkan Slope ($m$)", value=0.075)
-        intercept = st.number_input("Masukkan Intercep ($c$)", value=0.005)
-    with col2:
-        fp = st.number_input("Faktor Pengenceran (FP)", value=1.0)
-        vol_smpl = st.number_input("Volume / Bobot Sampel", value=10.0)
+# =========================================================================
+# MENU 2: PERHITUNGAN KADAR
+# =========================================================================
+with tab2:
+    st.header("🧪 Perhitungan Kadar Sampel")
+    st.write("Menghitung kadar sampel berdasarkan persamaan kurva regresi $y = mx + c$.")
 
-    absorbansi_sampel = st.number_input("Masukkan Nilai Absorbansi/Respon Sampel ($Y$)", value=0.325)
+    col_m, col_c = st.columns(2)
+    with col_m:
+        slope_in = st.number_input("Slope ($m$)", value=0.0752, format="%.4f")
+    with col_c:
+        intercept_in = st.number_input("Intercept ($c$)", value=0.0020, format="%.4f")
 
-    if st.button("Hitung Kadar"):
-        # x = (y - c) / m
-        kadar_baca = (absorbansi_sampel - intercept) / slope
-        kadar_akhir = kadar_baca * fp
+    col_abs, col_fp = st.columns(2)
+    with col_abs:
+        abs_sampel = st.number_input("Absorbansi Sampel ($Y$)", value=0.3100, format="%.4f")
+    with col_fp:
+        fp_in = st.number_input("Faktor Pengenceran (FP)", value=1.0)
+
+    if st.button("Hitung Kadar Sampel", type="primary"):
+        kadar_baca = (abs_sampel - intercept_in) / slope_in
+        kadar_akhir = kadar_baca * fp_in
 
         st.markdown("---")
         st.subheader("Hasil Perhitungan:")
-        st.write(f"Konsentrasi dari kurva kalibrasi ($x$): **{kadar_baca:.4f} ppm**")
-        st.write(f"Konsentrasi Sampel Akhir (setelah dikali FP {fp}): **{kadar_akhir:.4f} ppm**")
+        st.metric("Konsentrasi Terbaca (x)", f"{kadar_baca:.4f} ppm")
+        st.metric("Kadar Akhir Sampel (x × FP)", f"{kadar_akhir:.4f} ppm")
 
-# -------------------------------------------------------------------------
-# MENU 3: UJI AKURASI (% RECOVERY)
-# -------------------------------------------------------------------------
-elif menu == "3. Uji Akurasi (% Recovery)":
-    st.header("🎯 Perhitungan $\% \text{Recovery}$ (Akurasi)")
-    st.write("Rumus: $\% \text{Recovery} = \frac{C_{\text{terukur}} - C_{\text{awal}}}{C_{\text{spike}}} \times 100\%$")
 
-    c_awal = st.number_input("Konsentrasi Sampel Tanpa Penambahan ($C_{\text{awal}}$)", value=5.0)
-    c_tambah = st.number_input("Konsentrasi Baku yang Ditambahkan ($C_{\text{spike}}$)", value=5.0)
-    c_ukur = st.number_input("Konsentrasi Sampel Setelah Ditambah Baku ($C_{\text{terukur}}$)", value=9.8)
+# =========================================================================
+# MENU 3: UJI PRESISI
+# =========================================================================
+with tab3:
+    st.header("📊 Uji Presisi (% RSD / % RPD)")
+    
+    pilihan_presisi = st.radio("Pilih Tipe Uji Presisi:", ["% RSD (Replikasi Banyak)", "% RPD (Duplo / 2 Pengujian)"], horizontal=True)
 
-    if st.button("Hitung % Recovery"):
-        recovery = ((c_ukur - c_awal) / c_tambah) * 100
-        st.metric("% Recovery", f"{recovery:.2f}%")
+    if pilihan_presisi == "% RSD (Replikasi Banyak)":
+        st.write("Masukkan nilai hasil pembacaan replikasi sampel (pisahkan dengan koma):")
+        input_rsd = st.text_input("Data Replikasi", "10.2, 10.4, 10.1, 10.3, 10.2")
         
-        if 80 <= recovery <= 120:  # Contoh rentang penerimaan umum AOAC/AOCS
-            st.success("✅ Nilai % Recovery berada dalam rentang keberterimaan umum (80% - 120%).")
-        else:
-            st.warning("⚠️ Nilai % Recovery di luar rentang standar umum.")
-
-# -------------------------------------------------------------------------
-# MENU 4: UJI PRESISI (% RSD atau % RPD)
-# -------------------------------------------------------------------------
-elif menu == "4. Uji Presisi (% RSD / % RPD)":
-    st.header("📊 Perhitungan Presisi ($\% \text{RSD}$ atau $\% \text{RPD}$)")
-    
-    jenis_uji = st.radio("Pilih Jenis Uji Presisi:", ["% RSD (Replikasi Banyak)", "% RPD (Duplo / 2 Pengujian)"])
-
-    if jenis_uji == "% RSD (Replikasi Banyak)":
-        data_input = st.text_input("Masukkan data replikasi (pisahkan dengan koma)", "10.2, 10.4, 10.1, 10.3, 10.2")
-        if st.button("Hitung % RSD"):
+        if st.button("Hitung % RSD", type="primary"):
             try:
-                vals = [float(i.strip()) for i in data_input.split(",")]
-                mean_val = np.mean(vals)
-                sd_val = np.std(vals, ddof=1) # Standar deviasi sampel
-                rsd_val = (sd_val / mean_val) * 100
+                vals = [float(i.strip()) for i in input_rsd.split(",")]
+                mean_v = np.mean(vals)
+                sd_v = np.std(vals, ddof=1)
+                rsd_v = (sd_v / mean_v) * 100
 
-                st.write(o for o in []) # dummy spacing
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Rata-rata (Mean)", f"{mean_val:.4f}")
-                col2.metric("Standar Deviasi (SD)", f"{sd_val:.4f}")
-                col3.metric("% RSD", f"{rsd_val:.2f}%")
+                col_a, col_b, col_c = st.columns(3)
+                col_a.metric("Rata-rata (Mean)", f"{mean_v:.4f}")
+                col_b.metric("Standar Deviasi (SD)", f"{sd_v:.4f}")
+                col_c.metric("% RSD", f"{rsd_v:.2f}%")
             except ValueError:
-                st.error("Format data salah. Pastikan angka dipisahkan dengan koma.")
-    
+                st.error("Pastikan semua input berupa angka yang dipisahkan dengan koma.")
+
     else:
-        c1 = st.number_input("Hasil Pengujian 1 ($x_1$)", value=10.2)
-        c2 = st.number_input("Hasil Pengujian 2 ($x_2$)", value=10.5)
-        if st.button("Hitung % RPD"):
-            rpd = (abs(c1 - c2) / ((c1 + c2) / 2)) * 100
-            st.metric("% RPD", f"{rpd:.2f}%")
+        st.write("Masukkan hasil pengujian dua sampel sejenis (Duplo):")
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            d1 = st.number_input("Hasil Pengujian 1 ($x_1$)", value=10.2)
+        with col_d2:
+            d2 = st.number_input("Hasil Pengujian 2 ($x_2$)", value=10.5)
 
-# -------------------------------------------------------------------------
-# MENU 5: ESTIMASI LOD & LOQ
-# -------------------------------------------------------------------------
-elif menu == "5. Estimasi LOD & LOQ":
-    st.header("📉 Estimasi Limit of Detection (LOD) & Limit of Quantification (LOQ)")
-    st.write("Dihitung berdasarkan Standar Deviasi Blangko ($SD$) dan *Slope* ($m$) kurva kalibrasi.")
-    st.latex(r"LOD = \frac{3.3 \times SD}{m}, \quad LOQ = \frac{10 \times SD}{m}")
+        if st.button("Hitung % RPD", type="primary"):
+            rpd_v = (abs(d1 - d2) / ((d1 + d2) / 2)) * 100
+            st.metric("% RPD (Relative Percent Difference)", f"{rpd_v:.2f}%")
 
-    sd_val = st.number_input("Standar Deviasi ($SD$) Blangko / Simpangan Baku Residual", value=0.012)
-    slope_val = st.number_input("Nilai Slope ($m$) dari Kurva Kalibrasi", value=0.075)
 
-    if st.button("Hitung LOD & LOQ"):
-        lod = (3.3 * sd_val) / slope_val
-        loq = (10.0 * sd_val) / slope_val
+# =========================================================================
+# MENU 4: UJI AKURASI
+# =========================================================================
+with tab4:
+    st.header("🎯 Uji Akurasi (% Recovery)")
+    st.latex(r"\% \text{Recovery} = \frac{C_{\text{terukur}} - C_{\text{sampel}}}{C_{\text{spike}}} \times 100\%")
 
-        col1, col2 = st.columns(2)
-        col1.metric("LOD (Batas Deteksi)", f"{lod:.4f} ppm")
-        col2.metric("LOQ (Batas Kuantisasi)", f"{loq:.4f} ppm")
+    col_s1, col_s2, col_s3 = st.columns(3)
+    with col_s1:
+        c_sampel = st.number_input("Konsentrasi Sampel Tanpa Spike ($C_{\text{sampel}}$)", value=5.0)
+    with col_s2:
+        c_spike = st.number_input("Konsentrasi Standard yang Ditambahkan ($C_{\text{spike}}$)", value=5.0)
+    with col_s3:
+        c_terukur = st.number_input("Konsentrasi Sampel + Spike Terukur ($C_{\text{terukur}}$)", value=9.8)
+
+    if st.button("Hitung % Recovery", type="primary"):
+        recovery = ((c_terukur - c_sampel) / c_spike) * 100
+        st.metric("Hasil % Recovery", f"{recovery:.2f}%")
+        
+        if 80 <= recovery <= 120:
+            st.success("✅ Nilai % Recovery memenuhi kriteria keberterimaan (80% - 120%).")
+        else:
+            st.warning("⚠️ Nilai % Recovery di luar rentang standar (80% - 120%).")
