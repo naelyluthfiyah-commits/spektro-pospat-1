@@ -1,7 +1,6 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt # <-- Wajib ada gambar grafik bisa digambar!
 
 # Konfigurasi Halaman
 st.set_page_config(page_title="Kalkulator Analisis Kimia & Validasi", page_icon="🧪", layout="wide")
