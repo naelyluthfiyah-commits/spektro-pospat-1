@@ -34,8 +34,8 @@ if menu == "1. Kurva Kalibrasi & Regresi Linear":
     edited_df = st.data_editor(default_data, num_rows="dynamic")
 
     if st.button("Hitung Regresi Linear"):
-        x = edited_df["Konsentrasi (ppm/mg/L)"].values
-        y = edited_df["Absorbansi (Y)"].values
+        x = pd.to_numeric(edited_df["Konsentrasi (ppm/mg/L)"],errors='coerce').fillna(0).values.astype(float)
+        y = pd.to_numeric(edited_df["Absorbansi (Y)"], errors='coerce').fillna(0).values.astype(float)
 
         # Perhitungan Regresi Linear (Least Squares)
         n = len(x)
